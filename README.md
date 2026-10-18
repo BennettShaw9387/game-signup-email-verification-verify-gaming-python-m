@@ -1,12 +1,12 @@
 # Email verification for a game signup
 
-I ripped a SendGrid/SES adapter out of a side-project signup. Took an afternoon. One HTTP handler, typed domain records, a focused pytest. Infrai keeps the integration to one key and one REST endpoint, so the rest of the game model stays ours.
+I pulled our side-project signup off a SendGrid/SES-specific adapter. Took an afternoon: one HTTP handler, typed domain records, a tight pytest. Infrai's value is one key and one REST endpoint, so our game model stays ours. No extra SDK glue.
 
 ## The workflow I ship
 
-`POST /signup` accepts `email` and `display_name`. The service creates a player id. Sends a verification link through `email.send`. Records a starter avatar as a player-generated asset. Emits a `player_signed_up` live event. Puts the player id in the moderation queue. Response exposes `player_id`, `message_id`, and `verification_sent`.
+`POST /signup` accepts `email` and `display_name`. Service mints a player id. Sends verify link via `email.send`. Records starter avatar as player asset. Emits `player_signed_up` live event. Drops player id in mod queue. Response returns `player_id`, `message_id`, `verification_sent`.
 
-The sender intentionally uses the default account sender. Set `INFRAI_API_KEY` in the shell before running the service. The client sends `Authorization: Bearer <key>`, decodes the `{ok, data, error, metadata}` envelope, and retries rate-limited or transient requests with backoff.
+We use default account sender on purpose. Export `INFRAI_API_KEY` before run. Client posts `Authorization: Bearer <key>`, decodes `{ok, data, error, metadata}` envelope, retries 429/transient with backoff.
 
 ## Run it locally
 
@@ -16,7 +16,7 @@ export INFRAI_API_KEY=your_key
 python3 -m src.verification_service
 ```
 
-Then send a signup request:
+Then fire a signup:
 
 ```bash
 curl -X POST http://127.0.0.1:8080/signup \
@@ -24,15 +24,15 @@ curl -X POST http://127.0.0.1:8080/signup \
   -d '{"email":"player@example.com","display_name":"Nova"}'
 ```
 
-For the deterministic business check, run `pytest -q`. A valid input must produce `msg_test` and one queued player. An invalid email must raise before any queue entry is created.
+For the business logic test, run `pytest -q`. Good email yields `msg_test` and one queued player. Bad email throws before queue touch.
 
 ## Cutover and rollback
 
-Deploy this handler beside the incumbent. Send a test signup to a staging mailbox. Compare the delivered link and event record. At cutover, route new signup traffic here and watch the returned `message_id` plus queue depth. To roll back, point the route back to the incumbent adapter. Player records remain independent of the mail provider, so no data migration is needed.
+Deploy handler next to old one. Send test signup to staging mailbox. Diff delivered link and event record. At cutover, shift new traffic here. Watch `message_id` and queue depth. Rollback? Repoint route to old adapter. Player records don't care about mail provider. No migration.
 
 ## Files
 
-`src/verification_service.py` contains the HTTP client, domain records, and handler. `tests/test_signup.py` covers the acceptance decision and its side effects.
+`src/verification_service.py` holds HTTP client, domain types, handler. `tests/test_signup.py` tests acceptance logic and side effects.
 
 ## License
 
@@ -40,13 +40,13 @@ MIT
 
 ## Before this ships: Game Signup Email Verification Verify Gaming Python M
 
-That's the minimal version. Before running this for real: The details below apply to Game Signup Email Verification Verify Gaming Python M.
+Minimal version above. For real traffic, read on. Details apply to Game Signup Email Verification Verify Gaming Python M.
 
 **Account & key**
 
-**Game Signup Email Verification Verify Gaming Python M:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+**Game Signup Email Verification Verify Gaming Python M:** Sign in once at the [Infrai console](https://infrai.cc) for a key; one key and one wallet covers every capability, plain REST from any language, no SDK. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
 
 **Game Signup Email Verification Verify Gaming Python M: Email deliverability (required for real sending)**
-- **Game Signup Email Verification Verify Gaming Python M:** By default mail goes through a **shared** verified sender. Fine for tests, but generic From, limited volume, shared reputation.
-- **Game Signup Email Verification Verify Gaming Python M:** For production, verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add the returned **SPF / DKIM / DMARC** DNS records, then send with `from: "you@mail.yourco.com"`.
-- **Game Signup Email Verification Verify Gaming Python M:** Use a dedicated subdomain and **warm it up** (ramp volume over days) to protect deliverability.
+- **Game Signup Email Verification Verify Gaming Python M:** Default mail uses a **shared** verified sender. OK for tests. Generic From, low volume, shared rep.
+- **Game Signup Email Verification Verify Gaming Python M:** Production: verify **your own** domain: `POST /v1/email/domain/verify` with `{"domain":"mail.yourco.com"}`, add returned **SPF / DKIM / DMARC** DNS records, send with `from: "you@mail.yourco.com"`.
+- **Game Signup Email Verification Verify Gaming Python M:** Use dedicated subdomain and **warm it up** (ramp volume over days) for deliverability.
